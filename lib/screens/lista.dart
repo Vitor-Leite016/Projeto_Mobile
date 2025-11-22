@@ -1,36 +1,36 @@
 import 'package:flutter/material.dart';
 import '../models/pobrecom.dart';
+import '../services/pobrecom_local_service.dart';
 
-
-class TodoPage extends StatefulWidget {
-  const TodoPage({super.key});
+class TelaLista extends StatefulWidget {
+  const TelaLista({super.key});
 
   @override
-  State<TodoPage> createState() => _TodoPageState();
+  State<TelaLista> createState() => _TelalistaState();
 }
 
-class _TodoPageState extends State<TodoPage> {
-  final TodoService _todoService = TodoService();
-  List<Todo> _todos = [];
-  List<Todo> _filteredTodos = [];
+class _TelalistaState extends State<TelaLista> {
+  final DespesaLocalService _DespesaLocalService = DespesaLocalService();
+  List<Despesa> _despesas = [];
+  List<Despesa> _filteredDespesas = [];
   bool _isLoading = false;
-  String _currentFilter = 'Todos'; // 'Todos', 'Concluídos', 'Pendentes'
+  String _currentFilter = 'Todos'; // 'Todos', 'Pagos', 'Pendentes'
 
   @override
   void initState() {
     super.initState();
-    _loadTodos();
+    _loadDespesas();
   }
 
-  Future<void> _loadTodos() async {
+  Future<void> _loadDespesas() async {
     setState(() {
       _isLoading = true;
     });
 
     try {
-      final todos = await _todoService.getTodos(limit: 10);
+      final despesas = await _DespesaLocalService.getDespesas();
       setState(() {
-        _todos = todos;
+        _despesas = despesas;
         _applyFilter();
         _isLoading = false;
       });
@@ -46,75 +46,75 @@ class _TodoPageState extends State<TodoPage> {
 
   void _applyFilter() {
     switch (_currentFilter) {
-      case 'Concluídos':
-        _filteredTodos = _todos.where((todo) => todo.completed).toList();
+      case 'Pagos':
+        _filteredDespesas = _despesas.where((despesa) => despesa.pago).toList();
         break;
       case 'Pendentes':
-        _filteredTodos = _todos.where((todo) => !todo.completed).toList();
+        _filteredDespesas = _despesas.where((despesa) => !despesa.pago).toList();
         break;
       default:
-        _filteredTodos = List.from(_todos);
+        _filteredDespesas = List.from(_despesas);
     }
   }
 
-  Future<void> _createTodo(String title) async {
+  Future<void> _createDespesa(double valor, DateTime data, String descricao) async {
     try {
-      final newTodo = await _todoService.createTodo(
-        title: title,
-        completed: false,
-      );
+      final newDespesa = DespesaBuilder()
+          .setValor(valor)
+          .setData(data)
+          .setDescricao(descricao)
+          .build();
 
-      // Adicionar o novo TODO na lista local
+      await _DespesaLocalService.createDespesa(newDespesa);
+
       setState(() {
-        _todos.insert(0, newTodo);
+        _despesas.insert(0, newDespesa);
         _applyFilter();
       });
 
-      _showSnackBar('TODO criado com sucesso!');
+      _showSnackBar('Despesa criada com sucesso!');
     } catch (e) {
-      _showSnackBar('Erro ao criar TODO: $e', isError: true);
+      _showSnackBar('Erro ao criar despesa: $e', isError: true);
     }
   }
 
-  Future<void> _toggleTodoComplete(Todo todo) async {
+  Future<void> _toggleDespesaPaga(Despesa despesa) async {
     try {
-      final updatedTodo = await _todoService.updateTodo(
-        id: todo.id,
-        completed: !todo.completed,
+      final updatedDespesa = await _DespesaLocalService.updateDespesa(
+        id: despesa.id,
+        pago: !despesa.pago,
       );
 
-      // Atualizar na lista local
       setState(() {
-        final index = _todos.indexWhere((t) => t.id == todo.id);
+        final index = _despesas.indexWhere((d) => d.id == despesa.id);
         if (index != -1) {
-          _todos[index] = updatedTodo;
+          _despesas[index] = updatedDespesa;
           _applyFilter();
         }
       });
 
       _showSnackBar(
-        updatedTodo.completed
-            ? 'TODO marcado como concluído!'
-            : 'TODO marcado como pendente!',
+        updatedDespesa.pago
+            ? 'Despesa marcada como paga!'
+            : 'Despesa marcada como pendente!',
       );
     } catch (e) {
-      _showSnackBar('Erro ao atualizar TODO: $e', isError: true);
+      _showSnackBar('Erro ao atualizar despesa: $e', isError: true);
     }
   }
 
-  Future<void> _deleteTodo(Todo todo) async {
+  Future<void> _deleteDespesa(Despesa despesa) async {
     try {
-      await _todoService.deleteTodo(todo.id);
+      await _DespesaLocalService.deleteDespesa(despesa.id);
 
-      // Remover da lista local
       setState(() {
-        _todos.removeWhere((t) => t.id == todo.id);
+        _despesas.removeWhere((d) => d.id == despesa.id);
         _applyFilter();
       });
 
-      _showSnackBar('TODO excluído com sucesso!');
+      _showSnackBar('Despesa excluído com sucesso!');
     } catch (e) {
-      _showSnackBar('Erro ao excluir TODO: $e', isError: true);
+      _showSnackBar('Erro ao apagar Despesa: $e', isError: true);
     }
   }
 
@@ -128,22 +128,54 @@ class _TodoPageState extends State<TodoPage> {
     );
   }
 
-  void _showAddTodoDialog() {
-    final TextEditingController controller = TextEditingController();
+  void _showAddDespesaDialog() {
+    final TextEditingController valorController = TextEditingController();
+    final TextEditingController descricaoController = TextEditingController();
+    DateTime? selectedDate;
 
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Adicionar TODO'),
-        content: TextField(
-          controller: controller,
-          decoration: const InputDecoration(
-            hintText: 'Digite o título do TODO',
-            border: OutlineInputBorder(),
+        title: const Text('Adicionar Despesa'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: valorController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  hintText: 'Digite o valor da despesa',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: descricaoController,
+                decoration: const InputDecoration(
+                  hintText: 'Digite a descrição da despesa',
+                  border: OutlineInputBorder(),
+                ),
+                maxLines: 3,
+                textCapitalization: TextCapitalization.sentences,
+              ),
+              const SizedBox(height: 8),
+              ElevatedButton(
+                onPressed: () async {
+                  final pickedDate = await showDatePicker(
+                    context: context,
+                    initialDate: DateTime.now(),
+                    firstDate: DateTime(2000),
+                    lastDate: DateTime(2100),
+                  );
+                  if (pickedDate != null) {
+                    selectedDate = pickedDate;
+                  }
+                },
+                child: const Text('Selecionar Data'),
+              ),
+            ],
           ),
-          autofocus: true,
-          maxLines: 3,
-          textCapitalization: TextCapitalization.sentences,
         ),
         actions: [
           TextButton(
@@ -152,10 +184,14 @@ class _TodoPageState extends State<TodoPage> {
           ),
           ElevatedButton(
             onPressed: () {
-              final title = controller.text.trim();
-              if (title.isNotEmpty) {
-                _createTodo(title);
+              final valor = double.tryParse(valorController.text.trim());
+              final descricao = descricaoController.text.trim();
+
+              if (valor != null && descricao.isNotEmpty && selectedDate != null) {
+                _createDespesa(valor, selectedDate!, descricao);
                 Navigator.pop(context);
+              } else {
+                _showSnackBar('Preencha todos os campos corretamente.', isError: true);
               }
             },
             child: const Text('Salvar'),
@@ -176,7 +212,7 @@ class _TodoPageState extends State<TodoPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Todo App'),
+        title: const Text('Lista de Despesas'),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         actions: [
           PopupMenuButton<String>(
@@ -188,8 +224,8 @@ class _TodoPageState extends State<TodoPage> {
                 child: Text('Todos'),
               ),
               const PopupMenuItem(
-                value: 'Concluídos',
-                child: Text('Concluídos'),
+                value: 'Pagos',
+                child: Text('Pagos'),
               ),
               const PopupMenuItem(
                 value: 'Pendentes',
@@ -199,7 +235,7 @@ class _TodoPageState extends State<TodoPage> {
           ),
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: _loadTodos,
+            onPressed: _loadDespesas,
             tooltip: 'Recarregar',
           ),
         ],
@@ -208,7 +244,7 @@ class _TodoPageState extends State<TodoPage> {
           ? const Center(
               child: CircularProgressIndicator(),
             )
-          : _filteredTodos.isEmpty
+          : _filteredDespesas.isEmpty
               ? Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -220,7 +256,7 @@ class _TodoPageState extends State<TodoPage> {
                       ),
                       const SizedBox(height: 16),
                       Text(
-                        'Nenhum TODO encontrado',
+                        'Nenhuma despesa encontrada',
                         style: TextStyle(
                           fontSize: 18,
                           color: Colors.grey[600],
@@ -252,7 +288,7 @@ class _TodoPageState extends State<TodoPage> {
                             ),
                           ),
                           Text(
-                            '${_filteredTodos.length} itens',
+                            '${_filteredDespesas.length} itens',
                             style: TextStyle(
                               fontSize: 14,
                               color: Colors.grey[600],
@@ -263,25 +299,25 @@ class _TodoPageState extends State<TodoPage> {
                     ),
                     Expanded(
                       child: ListView.builder(
-                        itemCount: _filteredTodos.length,
+                        itemCount: _filteredDespesas.length,
                         padding: const EdgeInsets.symmetric(horizontal: 16),
                         itemBuilder: (context, index) {
-                          final todo = _filteredTodos[index];
-                          return _buildTodoItem(todo);
+                          final despesa = _filteredDespesas[index];
+                          return _buildDespesaItem(despesa);
                         },
                       ),
                     ),
                   ],
                 ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: _showAddTodoDialog,
+        onPressed: _showAddDespesaDialog,
         icon: const Icon(Icons.add),
-        label: const Text('Adicionar Todo'),
+        label: const Text('Adicionar Despesa'),
       ),
     );
   }
 
-  Widget _buildTodoItem(Todo todo) {
+  Widget _buildDespesaItem(Despesa despesa) {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       elevation: 2,
@@ -291,16 +327,16 @@ class _TodoPageState extends State<TodoPage> {
           vertical: 8,
         ),
         leading: CircleAvatar(
-          backgroundColor: todo.completed ? Colors.green : Colors.orange,
+          backgroundColor: despesa.pago ? Colors.green : Colors.orange,
           child: Icon(
-            todo.completed ? Icons.check : Icons.pending,
+            despesa.pago ? Icons.check : Icons.pending,
             color: Colors.white,
           ),
         ),
         title: Text(
-          todo.title,
+          despesa.descricao,
           style: TextStyle(
-            decoration: todo.completed
+            decoration: despesa.pago
                 ? TextDecoration.lineThrough
                 : TextDecoration.none,
             fontSize: 16,
@@ -309,7 +345,7 @@ class _TodoPageState extends State<TodoPage> {
         subtitle: Padding(
           padding: const EdgeInsets.only(top: 4),
           child: Text(
-            'ID: ${todo.id} • User: ${todo.userId}',
+            'Valor: ${despesa.valor} • Data: ${despesa.data}',
             style: TextStyle(
               fontSize: 12,
               color: Colors.grey[600],
@@ -321,19 +357,19 @@ class _TodoPageState extends State<TodoPage> {
           children: [
             IconButton(
               icon: Icon(
-                todo.completed
+                despesa.pago
                     ? Icons.check_circle
                     : Icons.check_circle_outline,
-                color: todo.completed ? Colors.green : Colors.grey,
+                color: despesa.pago ? Colors.green : Colors.grey,
               ),
-              onPressed: () => _toggleTodoComplete(todo),
-              tooltip: todo.completed
+              onPressed: () => _toggleDespesaPaga(despesa),
+              tooltip: despesa.pago
                   ? 'Marcar como pendente'
-                  : 'Marcar como concluído',
+                  : 'Marcar como paga',
             ),
             IconButton(
               icon: const Icon(Icons.delete, color: Colors.red),
-              onPressed: () => _deleteTodo(todo),
+              onPressed: () => _deleteDespesa(despesa),
               tooltip: 'Excluir',
             ),
           ],
