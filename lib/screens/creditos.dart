@@ -42,7 +42,7 @@ class TelaCreditosState extends State<TelaCreditos> {
               Center(
                 child: Column(
                   children: <Widget>[
-                    Row(
+                    Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                       children:<Widget>[
                         Container(
