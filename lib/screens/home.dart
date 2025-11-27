@@ -54,7 +54,7 @@ class HomeState extends State<Home> {
             SizedBox(height: 50),
             Container(
               width: 100,
-              child: Image.asset("images/logo.png"),
+              child: Image.asset("assets/images/logo.png"),
             ),
             SizedBox(height: 50),
             Padding(
